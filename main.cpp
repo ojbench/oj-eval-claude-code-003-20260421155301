@@ -3,7 +3,6 @@
 #include <vector>
 #include <map>
 #include <algorithm>
-#include <set>
 
 using namespace std;
 
@@ -72,10 +71,13 @@ bool compareTeams(const Team* a, const Team* b) {
         return a->solvedCount > b->solvedCount;
     if (a->penalty != b->penalty)
         return a->penalty < b->penalty;
-    for (size_t i = 0; i < min(a->solveTimes.size(), b->solveTimes.size()); ++i) {
+    // Tie-break: compare maximum solve time, then second largest, etc.
+    size_t n = min(a->solveTimes.size(), b->solveTimes.size());
+    for (size_t i = 0; i < n; ++i) {
         if (a->solveTimes[i] != b->solveTimes[i])
             return a->solveTimes[i] < b->solveTimes[i];
     }
+    // Still tied? Lexicographical order of names
     return a->name < b->name;
 }
 
@@ -97,36 +99,37 @@ int main() {
             string teamName;
             cin >> teamName;
             if (started) {
-                cout << "[Error]Add failed: competition has started." << endl;
+                cout << "[Error]Add failed: competition has started.\n";
             } else if (teamNameToId.count(teamName)) {
-                cout << "[Error]Add failed: duplicated team name." << endl;
+                cout << "[Error]Add failed: duplicated team name.\n";
             } else {
                 int id = teams.size();
                 teamNameToId[teamName] = id;
                 teams.push_back(new Team(teamName, id, 0));
-                cout << "[Info]Add successfully." << endl;
+                cout << "[Info]Add successfully.\n";
             }
         } else if (cmd == "START") {
             string dummy;
             cin >> dummy >> duration >> dummy >> problemCount;
             if (started) {
-                cout << "[Error]Start failed: competition has started." << endl;
+                cout << "[Error]Start failed: competition has started.\n";
             } else {
                 started = true;
                 for (auto t : teams) {
-                    t->problems.resize(problemCount);
+                    t->problems.assign(problemCount, Team::ProblemInfo());
                 }
                 scoreboard = teams;
                 sort(scoreboard.begin(), scoreboard.end(), [](Team* a, Team* b) {
                     return a->name < b->name;
                 });
-                cout << "[Info]Competition starts." << endl;
+                cout << "[Info]Competition starts.\n";
             }
         } else if (cmd == "SUBMIT") {
             string probName, by, teamName, with, statusStr, at;
             int time;
             cin >> probName >> by >> teamName >> with >> statusStr >> at >> time;
             int pId = probName[0] - 'A';
+            if (teamNameToId.find(teamName) == teamNameToId.end()) continue;
             int tId = teamNameToId[teamName];
             Team* t = teams[tId];
             Status s = stringToStatus(statusStr);
@@ -136,7 +139,7 @@ int main() {
 
             auto& p = t->problems[pId];
             if (!p.solved) {
-                if (frozen && !p.solved) {
+                if (frozen) {
                     if (!p.frozen) {
                         p.frozen = true;
                         p.failedBeforeFreeze = p.failedAttempts;
@@ -159,20 +162,20 @@ int main() {
                 }
             }
         } else if (cmd == "FLUSH") {
-            cout << "[Info]Flush scoreboard." << endl;
+            cout << "[Info]Flush scoreboard.\n";
             sort(scoreboard.begin(), scoreboard.end(), compareTeams);
         } else if (cmd == "FREEZE") {
             if (frozen) {
-                cout << "[Error]Freeze failed: scoreboard has been frozen." << endl;
+                cout << "[Error]Freeze failed: scoreboard has been frozen.\n";
             } else {
                 frozen = true;
-                cout << "[Info]Freeze scoreboard." << endl;
+                cout << "[Info]Freeze scoreboard.\n";
             }
         } else if (cmd == "SCROLL") {
             if (!frozen) {
-                cout << "[Error]Scroll failed: scoreboard has not been frozen." << endl;
+                cout << "[Error]Scroll failed: scoreboard has not been frozen.\n";
             } else {
-                cout << "[Info]Scroll scoreboard." << endl;
+                cout << "[Info]Scroll scoreboard.\n";
                 sort(scoreboard.begin(), scoreboard.end(), compareTeams);
 
                 auto printScoreboard = [&]() {
@@ -230,8 +233,6 @@ int main() {
                     auto& p = targetTeam->problems[targetProb];
                     p.frozen = false;
                     bool becameSolved = false;
-                    int oldAttempts = p.failedAttempts;
-                    p.failedAttempts = p.failedBeforeFreeze;
                     for (auto& sub : p.pendingSubmissions) {
                         if (sub.status == Accepted) {
                             p.solved = true;
@@ -246,9 +247,6 @@ int main() {
                             p.failedAttempts++;
                         }
                     }
-                    if (!becameSolved) {
-                        // p.failedAttempts is already updated
-                    }
 
                     int currentPos = targetPos;
                     while (currentPos > 0 && compareTeams(targetTeam, scoreboard[currentPos - 1])) {
@@ -258,7 +256,7 @@ int main() {
 
                     if (currentPos != targetPos) {
                         cout << targetTeam->name << " " << scoreboard[currentPos + 1]->name << " "
-                             << targetTeam->solvedCount << " " << targetTeam->penalty << endl;
+                             << targetTeam->solvedCount << " " << targetTeam->penalty << "\n";
                     }
                 }
 
@@ -268,12 +266,12 @@ int main() {
         } else if (cmd == "QUERY_RANKING") {
             string teamName;
             cin >> teamName;
-            if (!teamNameToId.count(teamName)) {
-                cout << "[Error]Query ranking failed: cannot find the team." << endl;
+            if (teamNameToId.find(teamName) == teamNameToId.end()) {
+                cout << "[Error]Query ranking failed: cannot find the team.\n";
             } else {
-                cout << "[Info]Complete query ranking." << endl;
+                cout << "[Info]Complete query ranking.\n";
                 if (frozen) {
-                    cout << "[Warning]Scoreboard is frozen. The ranking may be inaccurate until it were scrolled." << endl;
+                    cout << "[Warning]Scoreboard is frozen. The ranking may be inaccurate until it were scrolled.\n";
                 }
                 int rank = -1;
                 for (int i = 0; i < (int)scoreboard.size(); ++i) {
@@ -282,15 +280,15 @@ int main() {
                         break;
                     }
                 }
-                cout << teamName << " NOW AT RANKING " << rank << endl;
+                cout << teamName << " NOW AT RANKING " << rank << "\n";
             }
         } else if (cmd == "QUERY_SUBMISSION") {
             string teamName, where, probPart, andPart, statusPart;
             cin >> teamName >> where >> probPart >> andPart >> statusPart;
-            if (!teamNameToId.count(teamName)) {
-                cout << "[Error]Query submission failed: cannot find the team." << endl;
+            if (teamNameToId.find(teamName) == teamNameToId.end()) {
+                cout << "[Error]Query submission failed: cannot find the team.\n";
             } else {
-                cout << "[Info]Complete query submission." << endl;
+                cout << "[Info]Complete query submission.\n";
                 string probName = probPart.substr(8);
                 string statusStr = statusPart.substr(7);
 
@@ -308,13 +306,13 @@ int main() {
 
                 if (lastMatch) {
                     cout << teamName << " " << (char)(lastMatch->problemId + 'A') << " "
-                         << statusToString(lastMatch->status) << " " << lastMatch->time << endl;
+                         << statusToString(lastMatch->status) << " " << lastMatch->time << "\n";
                 } else {
-                    cout << "Cannot find any submission." << endl;
+                    cout << "Cannot find any submission.\n";
                 }
             }
         } else if (cmd == "END") {
-            cout << "[Info]Competition ends." << endl;
+            cout << "[Info]Competition ends.\n";
             break;
         }
     }
