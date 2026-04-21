@@ -119,6 +119,7 @@ int main() {
                     t->problems.assign(problemCount, Team::ProblemInfo());
                 }
                 scoreboard = teams;
+                // Initial ranking by name
                 sort(scoreboard.begin(), scoreboard.end(), [](Team* a, Team* b) {
                     return a->name < b->name;
                 });
@@ -182,7 +183,7 @@ int main() {
                     for (int i = 0; i < (int)scoreboard.size(); ++i) {
                         Team* t = scoreboard[i];
                         cout << t->name << " " << i + 1 << " " << t->solvedCount << " " << t->penalty;
-                        for (int j = 0; j < problemCount; ++j) {
+                        for (int j = 0; j < (int)t->problems.size(); ++j) {
                             auto& p = t->problems[j];
                             cout << " ";
                             if (p.frozen) {
@@ -207,7 +208,7 @@ int main() {
 
                     for (int i = (int)scoreboard.size() - 1; i >= 0; --i) {
                         bool hasFrozen = false;
-                        for (int j = 0; j < problemCount; ++j) {
+                        for (int j = 0; j < (int)scoreboard[i]->problems.size(); ++j) {
                             if (scoreboard[i]->problems[j].frozen) {
                                 hasFrozen = true;
                                 break;
@@ -223,7 +224,7 @@ int main() {
                     if (!targetTeam) break;
 
                     int targetProb = -1;
-                    for (int j = 0; j < problemCount; ++j) {
+                    for (int j = 0; j < (int)targetTeam->problems.size(); ++j) {
                         if (targetTeam->problems[j].frozen) {
                             targetProb = j;
                             break;
