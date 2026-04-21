@@ -61,9 +61,7 @@ struct Team {
     vector<ProblemInfo> problems;
     vector<Submission> allSubmissions;
 
-    Team(string n, int i, int problemCount) : name(n), id(i) {
-        problems.resize(problemCount);
-    }
+    Team(string n, int i) : name(n), id(i) {}
 };
 
 bool compareTeams(const Team* a, const Team* b) {
@@ -71,13 +69,12 @@ bool compareTeams(const Team* a, const Team* b) {
         return a->solvedCount > b->solvedCount;
     if (a->penalty != b->penalty)
         return a->penalty < b->penalty;
-    // Tie-break: compare maximum solve time, then second largest, etc.
-    size_t n = min(a->solveTimes.size(), b->solveTimes.size());
-    for (size_t i = 0; i < n; ++i) {
+    // Tie-break: compare solve times in descending order
+    for (size_t i = 0; i < a->solveTimes.size() && i < b->solveTimes.size(); ++i) {
         if (a->solveTimes[i] != b->solveTimes[i])
             return a->solveTimes[i] < b->solveTimes[i];
     }
-    // Still tied? Lexicographical order of names
+    // Lexicographical order
     return a->name < b->name;
 }
 
@@ -105,7 +102,7 @@ int main() {
             } else {
                 int id = teams.size();
                 teamNameToId[teamName] = id;
-                teams.push_back(new Team(teamName, id, 0));
+                teams.push_back(new Team(teamName, id));
                 cout << "[Info]Add successfully.\n";
             }
         } else if (cmd == "START") {
@@ -119,7 +116,6 @@ int main() {
                     t->problems.assign(problemCount, Team::ProblemInfo());
                 }
                 scoreboard = teams;
-                // Initial ranking by name
                 sort(scoreboard.begin(), scoreboard.end(), [](Team* a, Team* b) {
                     return a->name < b->name;
                 });
@@ -183,7 +179,7 @@ int main() {
                     for (int i = 0; i < (int)scoreboard.size(); ++i) {
                         Team* t = scoreboard[i];
                         cout << t->name << " " << i + 1 << " " << t->solvedCount << " " << t->penalty;
-                        for (int j = 0; j < (int)t->problems.size(); ++j) {
+                        for (int j = 0; j < problemCount; ++j) {
                             auto& p = t->problems[j];
                             cout << " ";
                             if (p.frozen) {
@@ -208,7 +204,7 @@ int main() {
 
                     for (int i = (int)scoreboard.size() - 1; i >= 0; --i) {
                         bool hasFrozen = false;
-                        for (int j = 0; j < (int)scoreboard[i]->problems.size(); ++j) {
+                        for (int j = 0; j < problemCount; ++j) {
                             if (scoreboard[i]->problems[j].frozen) {
                                 hasFrozen = true;
                                 break;
@@ -224,7 +220,7 @@ int main() {
                     if (!targetTeam) break;
 
                     int targetProb = -1;
-                    for (int j = 0; j < (int)targetTeam->problems.size(); ++j) {
+                    for (int j = 0; j < problemCount; ++j) {
                         if (targetTeam->problems[j].frozen) {
                             targetProb = j;
                             break;
