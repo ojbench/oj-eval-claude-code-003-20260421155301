@@ -196,23 +196,24 @@ int main() {
 
                 printScoreboard();
 
-                int lastIdx = (int)scoreboard.size() - 1;
                 while (true) {
-                    while (lastIdx >= 0) {
+                    Team* targetTeam = nullptr;
+                    int targetPos = -1;
+                    for (int i = (int)scoreboard.size() - 1; i >= 0; --i) {
                         bool hasFrozen = false;
                         for (int j = 0; j < problemCount; ++j) {
-                            if (scoreboard[lastIdx]->problems[j].frozen) {
+                            if (scoreboard[i]->problems[j].frozen) {
                                 hasFrozen = true;
                                 break;
                             }
                         }
-                        if (hasFrozen) break;
-                        lastIdx--;
+                        if (hasFrozen) {
+                            targetTeam = scoreboard[i];
+                            targetPos = i;
+                            break;
+                        }
                     }
-                    if (lastIdx < 0) break;
-
-                    Team* targetTeam = scoreboard[lastIdx];
-                    int targetPos = lastIdx;
+                    if (!targetTeam) break;
 
                     int targetProb = -1;
                     for (int j = 0; j < problemCount; ++j) {
