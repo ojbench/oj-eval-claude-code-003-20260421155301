@@ -39,19 +39,15 @@ struct Submission {
 struct Team {
     string name;
     int id;
+    int rank = 0;
 
-    // Real-time stats (visible)
     int solvedCount = 0;
     long long penalty = 0;
-    vector<int> solveTimes; // Sorted descending
+    vector<int> solveTimes;
 
-    // Problem stats
     struct ProblemInfo {
         bool solved = false;
-        int firstSolvedTime = -1;
         int failedAttempts = 0;
-
-        // For frozen logic
         bool frozen = false;
         int failedBeforeFreeze = 0;
         int submissionsAfterFreeze = 0;
@@ -69,12 +65,10 @@ bool compareTeams(const Team* a, const Team* b) {
         return a->solvedCount > b->solvedCount;
     if (a->penalty != b->penalty)
         return a->penalty < b->penalty;
-    // Tie-break: compare solve times in descending order
     for (size_t i = 0; i < a->solveTimes.size() && i < b->solveTimes.size(); ++i) {
         if (a->solveTimes[i] != b->solveTimes[i])
             return a->solveTimes[i] < b->solveTimes[i];
     }
-    // Lexicographical order
     return a->name < b->name;
 }
 
@@ -88,7 +82,7 @@ int main() {
 
     vector<Team*> teams;
     map<string, int> teamNameToId;
-    vector<Team*> scoreboard; // Current rankings
+    vector<Team*> scoreboard;
 
     string cmd;
     while (cin >> cmd) {
@@ -119,6 +113,9 @@ int main() {
                 sort(scoreboard.begin(), scoreboard.end(), [](Team* a, Team* b) {
                     return a->name < b->name;
                 });
+                for (int i = 0; i < (int)scoreboard.size(); ++i) {
+                    scoreboard[i]->rank = i + 1;
+                }
                 cout << "[Info]Competition starts.\n";
             }
         } else if (cmd == "SUBMIT") {
@@ -126,13 +123,12 @@ int main() {
             int time;
             cin >> probName >> by >> teamName >> with >> statusStr >> at >> time;
             int pId = probName[0] - 'A';
-            if (teamNameToId.find(teamName) == teamNameToId.end()) continue;
-            int tId = teamNameToId[teamName];
-            Team* t = teams[tId];
+            auto it = teamNameToId.find(teamName);
+            if (it == teamNameToId.end()) continue;
+            Team* t = teams[it->second];
             Status s = stringToStatus(statusStr);
 
-            Submission sub = {pId, s, time};
-            t->allSubmissions.push_back(sub);
+            t->allSubmissions.push_back({pId, s, time});
 
             auto& p = t->problems[pId];
             if (!p.solved) {
@@ -143,12 +139,11 @@ int main() {
                         p.submissionsAfterFreeze = 0;
                         p.pendingSubmissions.clear();
                     }
-                    p.pendingSubmissions.push_back(sub);
+                    p.pendingSubmissions.push_back({pId, s, time});
                     p.submissionsAfterFreeze++;
                 } else {
                     if (s == Accepted) {
                         p.solved = true;
-                        p.firstSolvedTime = time;
                         t->solvedCount++;
                         t->penalty += (long long)p.failedAttempts * 20 + time;
                         t->solveTimes.push_back(time);
@@ -161,6 +156,7 @@ int main() {
         } else if (cmd == "FLUSH") {
             cout << "[Info]Flush scoreboard.\n";
             sort(scoreboard.begin(), scoreboard.end(), compareTeams);
+            for (int i = 0; i < (int)scoreboard.size(); ++i) scoreboard[i]->rank = i + 1;
         } else if (cmd == "FREEZE") {
             if (frozen) {
                 cout << "[Error]Freeze failed: scoreboard has been frozen.\n";
@@ -174,22 +170,24 @@ int main() {
             } else {
                 cout << "[Info]Scroll scoreboard.\n";
                 sort(scoreboard.begin(), scoreboard.end(), compareTeams);
+                for (int i = 0; i < (int)scoreboard.size(); ++i) scoreboard[i]->rank = i + 1;
 
                 auto printScoreboard = [&]() {
                     for (int i = 0; i < (int)scoreboard.size(); ++i) {
                         Team* t = scoreboard[i];
                         cout << t->name << " " << i + 1 << " " << t->solvedCount << " " << t->penalty;
                         for (int j = 0; j < problemCount; ++j) {
-                            auto& p = t->problems[j];
+                            auto& pr = t->problems[j];
                             cout << " ";
-                            if (p.frozen) {
-                                cout << "-" << p.failedBeforeFreeze << "/" << p.submissionsAfterFreeze;
-                            } else if (p.solved) {
-                                if (p.failedAttempts == 0) cout << "+";
-                                else cout << "+" << p.failedAttempts;
+                            if (pr.frozen) {
+                                if (pr.failedBeforeFreeze == 0) cout << "0/" << pr.submissionsAfterFreeze;
+                                else cout << "-" << pr.failedBeforeFreeze << "/" << pr.submissionsAfterFreeze;
+                            } else if (pr.solved) {
+                                if (pr.failedAttempts == 0) cout << "+";
+                                else cout << "+" << pr.failedAttempts;
                             } else {
-                                if (p.failedAttempts == 0) cout << ".";
-                                else cout << "-" << p.failedAttempts;
+                                if (pr.failedAttempts == 0) cout << ".";
+                                else cout << "-" << pr.failedAttempts;
                             }
                         }
                         cout << "\n";
@@ -198,26 +196,23 @@ int main() {
 
                 printScoreboard();
 
+                int lastIdx = (int)scoreboard.size() - 1;
                 while (true) {
-                    Team* targetTeam = nullptr;
-                    int targetPos = -1;
-
-                    for (int i = (int)scoreboard.size() - 1; i >= 0; --i) {
+                    while (lastIdx >= 0) {
                         bool hasFrozen = false;
                         for (int j = 0; j < problemCount; ++j) {
-                            if (scoreboard[i]->problems[j].frozen) {
+                            if (scoreboard[lastIdx]->problems[j].frozen) {
                                 hasFrozen = true;
                                 break;
                             }
                         }
-                        if (hasFrozen) {
-                            targetTeam = scoreboard[i];
-                            targetPos = i;
-                            break;
-                        }
+                        if (hasFrozen) break;
+                        lastIdx--;
                     }
+                    if (lastIdx < 0) break;
 
-                    if (!targetTeam) break;
+                    Team* targetTeam = scoreboard[lastIdx];
+                    int targetPos = lastIdx;
 
                     int targetProb = -1;
                     for (int j = 0; j < problemCount; ++j) {
@@ -227,21 +222,18 @@ int main() {
                         }
                     }
 
-                    auto& p = targetTeam->problems[targetProb];
-                    p.frozen = false;
-                    bool becameSolved = false;
-                    for (auto& sub : p.pendingSubmissions) {
+                    auto& pr = targetTeam->problems[targetProb];
+                    pr.frozen = false;
+                    for (auto& sub : pr.pendingSubmissions) {
                         if (sub.status == Accepted) {
-                            p.solved = true;
-                            p.firstSolvedTime = sub.time;
+                            pr.solved = true;
                             targetTeam->solvedCount++;
-                            targetTeam->penalty += (long long)p.failedAttempts * 20 + sub.time;
+                            targetTeam->penalty += (long long)pr.failedAttempts * 20 + sub.time;
                             targetTeam->solveTimes.push_back(sub.time);
                             sort(targetTeam->solveTimes.begin(), targetTeam->solveTimes.end(), greater<int>());
-                            becameSolved = true;
                             break;
                         } else {
-                            p.failedAttempts++;
+                            pr.failedAttempts++;
                         }
                     }
 
@@ -256,40 +248,34 @@ int main() {
                              << targetTeam->solvedCount << " " << targetTeam->penalty << "\n";
                     }
                 }
-
+                for (int i = 0; i < (int)scoreboard.size(); ++i) scoreboard[i]->rank = i + 1;
                 printScoreboard();
                 frozen = false;
             }
         } else if (cmd == "QUERY_RANKING") {
             string teamName;
             cin >> teamName;
-            if (teamNameToId.find(teamName) == teamNameToId.end()) {
+            auto it = teamNameToId.find(teamName);
+            if (it == teamNameToId.end()) {
                 cout << "[Error]Query ranking failed: cannot find the team.\n";
             } else {
                 cout << "[Info]Complete query ranking.\n";
                 if (frozen) {
                     cout << "[Warning]Scoreboard is frozen. The ranking may be inaccurate until it were scrolled.\n";
                 }
-                int rank = -1;
-                for (int i = 0; i < (int)scoreboard.size(); ++i) {
-                    if (scoreboard[i]->name == teamName) {
-                        rank = i + 1;
-                        break;
-                    }
-                }
-                cout << teamName << " NOW AT RANKING " << rank << "\n";
+                cout << teamName << " NOW AT RANKING " << teams[it->second]->rank << "\n";
             }
         } else if (cmd == "QUERY_SUBMISSION") {
             string teamName, where, probPart, andPart, statusPart;
             cin >> teamName >> where >> probPart >> andPart >> statusPart;
-            if (teamNameToId.find(teamName) == teamNameToId.end()) {
+            auto it = teamNameToId.find(teamName);
+            if (it == teamNameToId.end()) {
                 cout << "[Error]Query submission failed: cannot find the team.\n";
             } else {
                 cout << "[Info]Complete query submission.\n";
                 string probName = probPart.substr(8);
                 string statusStr = statusPart.substr(7);
-
-                Team* t = teams[teamNameToId[teamName]];
+                Team* t = teams[it->second];
                 Submission* lastMatch = nullptr;
                 for (int i = (int)t->allSubmissions.size() - 1; i >= 0; --i) {
                     auto& sub = t->allSubmissions[i];
@@ -300,7 +286,6 @@ int main() {
                         break;
                     }
                 }
-
                 if (lastMatch) {
                     cout << teamName << " " << (char)(lastMatch->problemId + 'A') << " "
                          << statusToString(lastMatch->status) << " " << lastMatch->time << "\n";
@@ -313,7 +298,6 @@ int main() {
             break;
         }
     }
-
     for (auto t : teams) delete t;
     return 0;
 }
